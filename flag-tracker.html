@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🏕️ Scout Flag Pull Tracker</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fdf8f0;
+      color: #2c2c1e;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #4a7043;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    main {
+      max-width: 600px;
+      margin: 30px auto;
+      background: #fffef9;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    input, button {
+      padding: 10px 16px;
+      margin: 8px;
+      border-radius: 10px;
+      border: 2px solid #8fb380;
+      font-size: 16px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input:focus {
+      border-color: #4a7043;
+    }
+
+    button {
+      background-color: #8fb380;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #4a7043;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      background: #f0f5e1;
+      margin: 5px 0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #adminPanel, #app, #tracker, #login {
+      display: none;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <header>🏕️ Scout Flag Pull Tracker</header>
+
+  <main>
+    <!-- LOGIN -->
+    <div id="login">
+      <h2>🔐 Enter Access Code</h2>
+      <input type="password" id="accessCode" placeholder="Enter your code">
+      <button onclick="checkCode()">Login</button>
+      <p id="loginError" class="error"></p>
+    </div>
+
+    <!-- ADMIN PANEL -->
+    <div id="adminPanel">
+      <h2>🛠️ Admin Panel</h2>
+      <h3>Add New Access Code</h3>
+      <input type="text" id="newCodeInput" placeholder="e.g. scout123">
+      <button onclick="addAccessCode()">Add Code</button>
+
+      <h3>Current Access Codes</h3>
+      <ul id="codeList"></ul>
+      <button onclick="clearAllData()" style="background: darkred; margin-top: 10px;">🧹 Reset Everything</button>
+    </div>
+
+    <!-- APP -->
+    <div id="app">
+      <h2>Add Scouts</h2>
+      <input type="text" id="nameInput" placeholder="Scout name">
+      <button onclick="addName()">Add</button>
+      <button onclick="startGame()">Start/Reset</button>
+      <div id="nameList"></div>
+    </div>
+
+    <!-- TRACKER -->
+    <div id="tracker">
+      <hr>
+      <h2 id="nextPuller">🎯 Who pulls the flag?</h2>
+      <div class="center">
+        <button onclick="pickNext()">Pick Next</button>
+      </div>
+      <div>
+        <h3>✅ Already had a turn:</h3>
+        <ul id="usedList"></ul>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // SHA-256 hash of "admin"
+    const adminHash = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+
+    let scouts = [];
+    let used = [];
+
+    function getAccessCodes() {
+      return JSON.parse(localStorage.getItem('accessCodes') || '[]');
+    }
+
+    function setAccessCodes(codes) {
+      localStorage.setItem('accessCodes', JSON.stringify(codes));
+    }
+
+    async function checkCode() {
+      const input = document.getElementById('accessCode').value.trim();
+      const accessCodes = getAccessCodes();
+      const hash = await hashSHA256(input);
+
+      if (hash === adminHash) {
+        showAdminPanel();
+      } else if (accessCodes.includes(input)) {
+        showUserApp();
+      } else {
+        document.getElementById('loginError').innerText = "❌ Invalid code.";
+      }
+    }
+
+    function showUserApp() {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('tracker').style.display = 'block';
+      loadProgress();
+    }
+
+    function showAdminPanel() {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      updateCodeList();
+    }
+
+    function addAccessCode() {
+      const newCode = document.getElementById('newCodeInput').value.trim();
+      if (!newCode) return alert("Enter a code.");
+      let codes = getAccessCodes();
+      if (!codes.includes(newCode)) {
+        codes.push(newCode);
+        setAccessCodes(codes);
+        document.getElementById('newCodeInput').value = '';
+        updateCodeList();
+      }
+    }
+
+    function removeCode(code) {
+      let codes = getAccessCodes().filter(c => c !== code);
+      setAccessCodes(codes);
+      updateCodeList();
+    }
+
+    function updateCodeList() {
+      const codes = getAccessCodes();
+      const list = document.getElementById('codeList');
+      list.innerHTML = '';
+      codes.forEach(code => {
+        const li = document.createElement('li');
+        li.innerHTML = `${code} <button onclick="removeCode('${code}')">❌</button>`;
+        list.appendChild(li);
+      });
+    }
+
+    function addName() {
+      const input = document.getElementById('nameInput');
+      const name = input.value.trim();
+      if (name && !scouts.includes(name)) {
+        scouts.push(name);
+        input.value = '';
+        updateNameList();
+        saveProgress();
+      }
+    }
+
+    function updateNameList() {
+      document.getElementById('nameList').innerHTML =
+        scouts.length ? '🌱 Scouts: ' + scouts.join(', ') : '';
+    }
+
+    function startGame() {
+      if (scouts.length === 0) {
+        alert("Please add at least one scout.");
+        return;
+      }
+      used = [];
+      document.getElementById('nextPuller').innerText = "🎯 Who pulls the flag?";
+      document.getElementById('usedList').innerHTML = '';
+      saveProgress();
+    }
+
+    function pickNext() {
+      const remaining = scouts.filter(name => !used.includes(name));
+      if (remaining.length === 0) {
+        alert("🎉 Everyone has had a turn! Starting over...");
+        used = [];
+        document.getElementById('usedList').innerHTML = '';
+      } else {
+        const pick = remaining[Math.floor(Math.random() * remaining.length)];
+        used.push(pick);
+        document.getElementById('nextPuller').innerText = `🚩 Next: ${pick}`;
+        const li = document.createElement('li');
+        li.textContent = pick;
+        document.getElementById('usedList').appendChild(li);
+      }
+      saveProgress();
+    }
+
+    function saveProgress() {
+      localStorage.setItem('scouts', JSON.stringify(scouts));
+      localStorage.setItem('used', JSON.stringify(used));
+    }
+
+    function loadProgress() {
+      scouts = JSON.parse(localStorage.getItem('scouts') || '[]');
+      used = JSON.parse(localStorage.getItem('used') || '[]');
+      updateNameList();
+      document.getElementById('usedList').innerHTML = '';
+      used.forEach(name => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        document.getElementById('usedList').appendChild(li);
+      });
+    }
+
+    function clearAllData() {
+      if (confirm("Are you sure you want to reset all scouts, turns, and codes?")) {
+        localStorage.clear();
+        location.reload();
+      }
+    }
+
+    async function hashSHA256(str) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    document.getElementById('login').style.display = 'block';
+  </script>
+</body>
+</html>
