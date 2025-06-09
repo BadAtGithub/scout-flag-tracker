@@ -133,8 +133,10 @@
   </main>
 
   <script>
-    // SHA-256 hash of "admin"
-    const adminHash = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+    const adminHash = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"; // "admin"
+    const hiddenUserHashes = [
+      "1dbce02ce96fb7fc3b3d6f0167551a3e4311ffca9bd6d0d11daecdc3f20111d8" // your hidden user hash
+    ];
 
     let scouts = [];
     let used = [];
@@ -154,7 +156,7 @@
 
       if (hash === adminHash) {
         showAdminPanel();
-      } else if (accessCodes.includes(input)) {
+      } else if (hiddenUserHashes.includes(hash) || accessCodes.includes(input)) {
         showUserApp();
       } else {
         document.getElementById('loginError').innerText = "❌ Invalid code.";
